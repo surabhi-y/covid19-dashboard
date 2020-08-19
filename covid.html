@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>covid-dashboard</title>
+    <link rel="icon" href="logo.png" type="image/icon type">
+  
+    <script src=" https://www.amcharts.com/lib/4/core.js"></script>
+    <script src="https://www.amcharts.com/lib/4/maps.js"></script>
+    <script src="  https://www.amcharts.com/lib/4/geodata/indiaHigh.js"></script>
+    <script src="https://www.amcharts.com/lib/4/geodata/worldLow.js"></script>
+    <script src="https://www.amcharts.com/lib/4/themes/animated.js"></script>
+   
+    <style>
+      body{
+        margin:0%;
+      }
+      #chartdiv {
+  width: 100%;
+  height: 600px;
+}	
+.navigation{
+  background:#303a52;
+  height: 50px;
+  width: 100%;
+  font-size:20px;
+  text-align: center;
+  color: white;
+}
+     </style>
+  </head>
+  <body>
+  <div  class="navigation">India COVID Distribution</div>
+   <!-- HTML -->
+<div id="chartdiv">
+
+</div>
+<script>
+const india_dictionary = {
+  "Andaman and Nicobar Islands": "IN-AN",
+  "Andhra Pradesh": "IN-AP",
+  "Arunachal Pradesh": "IN-AR",
+  Assam: "IN-AS",
+  Bihar: "IN-BR",
+  Chandigarh: "IN-CH",
+  Chhattisgarh: "IN-CT",
+  "Daman and Diu": "IN-DD",
+  Delhi: "IN-DL",
+  Goa: "IN-GA",
+  Gujarat: "IN-GJ",
+  "Himachal Pradesh": "IN-HP",
+  Haryana: "IN-HR",
+  Jharkhand: "IN-JH",
+  "Jammu and Kashmir": "IN-JK",
+  Ladakh: "IN-JK",
+  Karnataka: "IN-KA",
+  Kerala: "IN-KL",
+  Lakshadweep: "IN-LD",
+  Maharashtra: "IN-MH",
+  Meghalaya: "IN-ML",
+  Manipur: "IN-MN",
+  "Madhya Pradesh": "IN-MP",
+  Mizoram: "IN-MZ",
+  Nagaland: "IN-NL",
+  Odisha: "IN-OR",
+  Punjab: "IN-PB",
+  Puducherry: "IN-PY",
+  Rajasthan: "IN-RJ",
+  Sikkim: "IN-SK",
+  Telangana: "IN-TG",
+  "Tamil Nadu": "IN-TN",
+  Tripura: "IN-TR",
+  "Uttar Pradesh": "IN-UP",
+  Uttarakhand: "IN-UT",
+  "West Bengal": "IN-WB"
+};
+
+async function getApiData() {
+  let res = await fetch(
+    "https://corona-virus-world-and-india-data.p.rapidapi.com/api_india",
+    {
+      method: "GET",
+      headers: {
+        "x-rapidapi-host": "corona-virus-world-and-india-data.p.rapidapi.com",
+        "x-rapidapi-key": "dfe5412b1cmsh6372e7090eb75d1p1313a2jsnbdf40c019a0d"
+      }
+    }
+  );
+
+  let apiData = await res.json();
+  return apiData;
+}
+
+am4core.ready(async function () {
+  // Themes begin
+  am4core.useTheme(am4themes_animated);
+  // Themes end
+
+  // Create map instance
+  var chart = am4core.create("chartdiv", am4maps.MapChart);
+  let apiData = await getApiData();
+  console.log(apiData);
+  var mapData = [];
+  // "active":"10823","confirmed":"152580","deaths":"4196",
+  let state_wise_data = apiData.state_wise;
+
+
+  Object.entries(state_wise_data).map(([state_name, value]) => {
+    const filter_these_states = ["State Unassigned","Ladakh","Dadra and Nagar Haveli and Daman and Diu"];
+  mapData = mapData.filter((e) => !filter_these_states.includes(e.name));
+    mapData.push({
+      id: india_dictionary[state_name],
+     // id: "IN-DL",
+      name: state_name,
+      value: value.confirmed,
+      active: value.active,
+      deaths: value.deaths,
+      recovered: value.recovered,
+      color: chart.colors.getIndex(9)
+    });
+    
+  });
+
+
+  console.log(mapData.slice(1, 4));
+
+
+  // Set map definition
+  // chart.geodata = am4geodata_worldLow;
+  chart.geodata = am4geodata_indiaHigh;
+  // Set projection
+  chart.projection = new am4maps.projections.Miller();
+
+  // Create map polygon series
+  var polygonSeries = chart.series.push(new am4maps.MapPolygonSeries());
+  polygonSeries.useGeodata = true;
+  polygonSeries.nonScalingStroke = true;
+  polygonSeries.strokeWidth = 0.5;
+  polygonSeries.calculateVisualCenter = true;
+
+
+  var imageSeries = chart.series.push(new am4maps.MapImageSeries());
+  imageSeries.data = mapData;
+  imageSeries.dataFields.value = "value";
+
+  var imageTemplate = imageSeries.mapImages.template;
+  imageTemplate.nonScaling = true;
+
+
+
+
+
+  var circle = imageTemplate.createChild(am4core.Circle);
+  circle.fillOpacity = 0.7;
+  circle.propertyFields.fill ="color";
+  circle.tooltipText = `[bold] {name}[/]
+            -------
+            Total: [bold]{value}[/] 
+            Active: [bold]{active}[/] 
+            Recovered: [bold]{recovered}[/] 
+            Deaths: [bold]{deaths}[/]
+        `;
+
+  imageSeries.heatRules.push({
+    target: circle,
+    property: "radius",
+    min: 6,
+    max: 30,
+    dataField: "value"
+  });
+
+  imageTemplate.adapter.add("latitude", function (latitude, target) {
+    var polygon = polygonSeries.getPolygonById(target.dataItem.dataContext.id);
+    if (polygon) {
+      return polygon.visualLatitude;
+    }
+    return latitude;
+  });
+
+  imageTemplate.adapter.add("longitude", function (longitude, target) {
+    var polygon = polygonSeries.getPolygonById(target.dataItem.dataContext.id);
+    if (polygon) {
+      return polygon.visualLongitude;
+    }
+    return longitude;
+  });
+});
+
+      </script>
+
+</body>
+
